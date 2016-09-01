@@ -33,7 +33,7 @@ class PyTest(TestCommand):
 setup(
     name='asker',
     version=__version__,
-    description="Nice multiple choice selection and more!",
+    description="Nice cli multiple choice selection and more!",
     long_description=read_description(),
     classifiers=[
         'Development Status :: 5 - Production/Stable',
