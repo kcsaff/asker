@@ -3,7 +3,7 @@
 import sys
 from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
-from askme import __version__
+from asker import __version__
 
 
 def read_description():
