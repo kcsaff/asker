@@ -184,11 +184,11 @@ class LineBlock(object):
     def __init__(self, writer=None):
         self.writer = writer or Writer()
         self.pos = 0
-        self.lens = list()
+        self.lines = Lines()
 
     def __enter__(self):
         self.pos = 0
-        self.lens = list()
+        self.lines = Lines()
         return self
 
     def __exit__(self, type, value, tb):
@@ -199,27 +199,152 @@ class LineBlock(object):
             self.print_at(i, '')
 
     def print_at(self, line, text, clear=True):
-        newlen = len(strip_ansi_escape(text))
-        while line >= len(self.lens):
-            self.lens.append(0)
-        oldlen = self.lens[line]
-        if clear:
-            self.lens[line] = newlen
-            if oldlen > newlen:
-                text += ' ' * (oldlen - newlen)
-        elif newlen > oldlen:
-            self.lens[line] = newlen
-        while not self.lens[-1]:
-            self.lens.pop()
+        newtext = self.lines.set(line, text, clear=clear)
         rel = line - self.pos
         if rel > 0:
             self.writer.down(rel)
         elif rel < 0:
             self.writer.up(rel)
-        self.writer.print(text)
+        self.writer.print(newtext)
         self.writer.up(2)
         self.writer.print('')
         self.pos = line
+
+
+class ScrollingBlock(object):
+    def __init__(
+            self, block, start, stop, format=None,
+            top_margin=0, bottom_margin=0,
+            more_above='< ^^^ {count} more ^^^ >',
+            more_below='< vvv {count} more vvv >',
+    ):
+        self.block = block
+        self.start = start
+        self.stop = stop
+        self.format = format
+        self.top_margin = top_margin
+        self.bottom_margin = bottom_margin
+        self.more_above = more_above
+        self.more_below = more_below
+        self._window = 0
+        self._focus = 0
+        self._lines = Lines()
+
+    @property
+    def focus(self):
+        return self._focus
+
+    @property
+    def visible_length(self):
+        length = self.length
+        if self.shows_more_above:
+            length -= 1
+        if self.shows_more_below:
+            length -= 1
+        return length
+
+    @property
+    def length(self):
+        return self.stop - self.start
+
+    @property
+    def shows_more_above(self):
+        return self.more_above and self._window > 0
+
+    @property
+    def shows_more_below(self):
+        return self.more_below and self._window < len(self._lines) - self.length
+
+    @property
+    def first_visible(self):
+        first = self._window
+        if self.shows_more_above:
+            first += 1
+        return first
+
+    @property
+    def last_visible(self):
+        last = self._window + self.length
+        if self.shows_more_below:
+            last -= 1
+        return last
+
+    def is_visible(self, line):
+        self.first_visible <= line <= self.last_visible
+
+    def _map_line(self, line):
+        return line - self._window
+
+    def print_at(self, line, text, clear=True, refresh=True):
+        self._lines.set(line, text, clear)
+        if refresh and self.is_visible(line):
+            self._refresh(line)
+
+    def up(self, count=1):
+        return self.set_focus(self._focus - count)
+
+    def down(self, count=1):
+        return self.set_focus(self._focus + count)
+
+    def page_up(self):
+        return self.set_focus(self._focus - self.visible_length)
+
+    def page_down(self):
+        return self.set_focus(self._focus + self.visible_length)
+
+    def set_focus(self, line):
+        if line < 0:
+            newfocus = 0
+        elif line >= len(self._lines):
+            newfocus = len(self._lines)
+        else:
+            newfocus = line
+
+        oldfocus = self._focus
+        if oldfocus == newfocus:
+            return newfocus
+
+        self._focus = newfocus
+
+        if newfocus < self._window + self.top_margin:
+            self.set_window(newfocus - self.top_margin)
+        elif newfocus >= \
+                    self._window + self.visible_length - self.bottom_margin:
+            self.set_window(
+                newfocus - self.visible_length + self.bottom_margin)
+        else:
+            self._refresh(oldfocus)
+            self._refresh(newfocus)
+
+    def _refresh(self, line):
+        block_line = self._map_line(line)
+        if not 0 <= block_line < self.length:
+            return
+        if block_line == 0 and self.shows_more_above:
+            text = self.more_above.format(count=self.first_visible)
+        elif block_line == self.length -1 and self.shows_more_below:
+            text = self.more_below.format(
+                count=len(self._lines) - self.last_visible - 1
+            )
+        else:
+            text = self._lines[line]
+            if self.format:
+                text = self.format(line, text, line == self.focus)
+        self.block.print_at(block_line, text)
+
+    def set_window(self, window):
+        if window < 0:
+            window = 0
+        elif window > len(self._lines) - self.length:
+            window = len(self._lines) - self.length
+        if window == self._window:
+            return
+        self._window = window
+        self.refresh()
+
+    def refresh(self):
+        for line in range(self.length):
+            self._refresh(line)
 
 
 class Writer(object):
@@ -274,3 +399,51 @@ class Highlighter(object):
 
 def strip_ansi_escape(text):
     return ANSI_ESC_REGEX.sub('', text)
+
+
+class Lines(object):
+    def __init__(self):
+        self.lines = list()
+
+    def __len__(self):
+        return len(self.lines)
+
+    def __getitem__(self, key):
+        return self.get(key)
+
+    def __setitem__(self, key, value):
+        self.set(key, value)
+
+    def set(self, line, text, clear=True):
+        newlen = len(strip_ansi_escape(text))
+        while text and line >= len(self.lines):
+            self.lines.append('')
+
+        oldtext = self.lines[line]
+        oldlen = len(strip_ansi_escape(oldtext))
+        if newlen >= oldlen:
+            newtext = text
+        elif clear:
+            newtext = text + ' ' * (oldlen - newlen)
+        else:
+            index = newlen
+            while index < len(oldtext) and \
+                            len(strip_ansi_escape(oldtext[:index])) <= newlen:
+                index += 1
+            while index and len(strip_ansi_escape(oldtext[:index])) > newlen:
+                index -= 1
+
+            newtext = text + oldtext[index:]
+
+        self.lines[line] = newtext.rstrip()
+
+        while self.lines and not self.lines[-1]:
+            self.lines.pop()
+
+        return newtext
+
+    def get(self, line):
+        if line >= len(self.lines):
+            return ''
+        else:
+            return self.lines[line]
