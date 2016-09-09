@@ -3,7 +3,9 @@
 import sys
 from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
-from asker import __version__
+
+
+version = '0.1.4'
 
 
 def read_description():
@@ -32,7 +34,7 @@ class PyTest(TestCommand):
 
 setup(
     name='asker',
-    version=__version__,
+    version=version,
     description="Nice cli multiple choice selection and more!",
     long_description=read_description(),
     classifiers=[
