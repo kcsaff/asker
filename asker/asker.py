@@ -287,10 +287,10 @@ class ScrollingBlock(object):
         return self.set_focus(self._focus + count)
 
     def page_up(self):
-        return self.set_focus(self._focus - self.visible_length)
+        return self.up(self.visible_length)
 
     def page_down(self):
-        return self.set_focus(self._focus + self.visible_length)
+        return self.down(self.visible_length)
 
     def set_focus(self, line):
         if line < 0:
