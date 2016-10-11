@@ -35,7 +35,7 @@ class Asker(object):
         return query
 
     def ask(self, query, default=None, type=None, choices=None, labels=None):
-        if choices:
+        if choices is not None:
             if type:
                 raise ValueError('Cannot use both `choices` and `type`')
             return self.select(query, choices, labels, default=default)
@@ -71,12 +71,30 @@ class Asker(object):
         )
 
     def select(self, query, choices, labels=None, default=None):
+        if not choices or len(choices) == 0:
+            raise ValueError(
+                'Can only select when choices are given, nothing in {!r}'.format(
+                    choices
+                )
+            )
+        elif default is not None and default not in choices:
+            raise ValueError(
+                'Default value {!r} not found in choices {!r}'.format(
+                    default, choices
+                )
+            )
+        elif len(choices) == 1:
+            result = choices[0]
+            query = self.format_query(query, default)
+            self.writer.print('{}{} [only choice]'.format(query, result))
+            return result
+        
         filter = ''
 
         if not labels:
             labels = choices
         index = 0
-        if default:
+        if default is not None:
             index = choices.index(default)
         filtered_labels = list(labels)
         filtered_choices = list(choices)
