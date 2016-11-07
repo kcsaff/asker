@@ -3,6 +3,7 @@ import sys
 from contextlib import contextmanager
 import re
 from six import moves
+import colorama
 from colorama import Fore, Back, Style, Cursor
 from getkey import getkey, keys
 
@@ -19,6 +20,7 @@ class Asker(object):
     def __init__(self, writer=None, highlighter=None):
         self.writer = writer or Writer()
         self.highlighter = highlighter or Highlighter()
+        colorama.init()
 
     def format_query(self, query, default):
         """Format a query that has a default value."""
@@ -233,7 +235,7 @@ class LineBlock(object):
         if rel > 0:
             self.writer.down(rel)
         elif rel < 0:
-            self.writer.up(rel)
+            self.writer.up(-rel)
         self.writer.print(text)
         self.writer.up(2)
         self.writer.print('')
