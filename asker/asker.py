@@ -2,7 +2,7 @@ from __future__ import print_function
 import sys
 from contextlib import contextmanager
 import re
-from six import moves
+from six import moves, string_types
 import colorama
 from colorama import Fore, Back, Style, Cursor
 from getkey import getkey, keys
@@ -191,7 +191,10 @@ class Asker(object):
                     index = refilter(index)
 
             if index >= 0:
-                print_at_line(0, query + filtered_choices[index])
+                if isinstance(filtered_choices[index], string_types):
+                    print_at_line(0, query + filtered_choices[index])
+                else:
+                    print_at_line(0, query + filtered_labels[index])
 
         return filtered_choices[index]
 

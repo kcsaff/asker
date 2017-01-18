@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
 
 
-version = '0.1.6'
+version = '0.1.7'
 
 
 def read_description():
